@@ -16,24 +16,17 @@ import Transaction from "@/components/classes/Transaction"
 import Category from "@/components/classes/Category"
 import UserData from "@/components/classes/UserData"
 
-const transaction1 = new Transaction('1', new Date('2025-10-15'), 85.50, 'expense', 'Chevron', '1');
-const transaction2 = new Transaction('2', new Date('2025-10-15'), 40.00, 'expense', 'Game', '2');
-const transaction3 = new Transaction('3', new Date('2025-10-15'), 40.00, 'expense', 'Movie Theater', '2');
-const transaction4 = new Transaction('4', new Date('2025-10-15'), 1200.00, 'income', 'Salary', '0');
-
 const category1 = new Category('0', new Date(), 'Income', '#ffffff', 0);
-const category2 = new Category('1', new Date(), 'Transportation', '#ef4444', 500);
-const category3 = new Category('2', new Date(), 'Entertainment', '#f97316', 200);
+const category2 = new Category('1', new Date(), 'Uncategorized', '#c7c7c7', 0);
 const sampleUserData = new UserData();
-sampleUserData.setCategories([category1, category2, category3]);
-sampleUserData.setTransactions([transaction1, transaction2, transaction3, transaction4]);
+sampleUserData.setCategories([category1, category2]);
 
 export default function App() {
   const [logState, setLogState] = useState<boolean>(true)
   const [loogedIn, setLoggedIn] = useState<boolean>(false)
   const [userData, setUserData] = useState<UserData>(sampleUserData)
   const [categories, setCategories] = useState<Category[]>(userData.getCategories())
-  const [transactions, setTransactions] = useState<Transaction[]>([transaction1, transaction2, transaction3, transaction4])
+  const [transactions, setTransactions] = useState<Transaction[]>(userData.getTransactions())
   const [monthYear, setMonthYear] = useState<string>(`${new Date().getMonth() + 1}-${new Date().getFullYear()}`) // month 1-12
   const [transactionsTabSearchQuery, setTransactionsTabSearchQuery] = useState<string>(`@date:${monthYear}`)
 
@@ -218,7 +211,7 @@ export default function App() {
         </Tabs>
 
         {/* Getting Started Guide */}
-        {userData.getCategories().length === 1 && (
+        {(userData.calculateTotalExpense(monthYear) === 0 && userData.categorySize() === 2) && (
           <Card className="p-8 mt-8 text-center">
             <h3 className="mb-4">Welcome to your Budget Tracker!</h3>
             <p className="text-muted-foreground mb-6">

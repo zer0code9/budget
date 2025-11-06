@@ -200,7 +200,7 @@ export function BudgetManager({ userData, onUpdateCategories, onDeleteCategory, 
       </div>
 
       <div className="grid gap-4">
-        {userData.getCategories().length - 1 === 0 ? (
+        {userData.getCategories().length - 1 === 0 || (userData.calculateTotalExpense(monthYear) === 0 && userData.categorySize() === 2) ? (
           <div className="text-center text-muted-foreground py-8">
             <PlusCircle className="w-12 h-12 mx-auto mb-2 opacity-50" />
             <p>No categories yet.</p>
@@ -212,6 +212,7 @@ export function BudgetManager({ userData, onUpdateCategories, onDeleteCategory, 
             const { month, year } = userData.parseMonthYear(monthYear);
             const percentage = userData.calculateUsage(category.getId(), month, year);
             const remaining = userData.calculateRemainingBudget(category.getId(), month, year);
+            const isUncategorized = category.getId() === "1";
             
             return (
               <Card key={category.getId()} className="p-4">
@@ -223,7 +224,7 @@ export function BudgetManager({ userData, onUpdateCategories, onDeleteCategory, 
                     />
                     <div>
                       <h4>{category.getName()}</h4>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-sm text-muted-foreground" hidden={isUncategorized}>
                         {formatCurrency(userData.calculateExpense(category.getId(), month, year))} of {formatCurrency(category.getBudget())} spent
                       </p>
                     </div>
@@ -231,13 +232,13 @@ export function BudgetManager({ userData, onUpdateCategories, onDeleteCategory, 
                   <div className="flex items-center gap-2">
                     <div className="text-right">
                       <p className={remaining >= 0 ? "text-green-600" : "text-red-600"}>
-                        {formatCurrency(remaining)} remaining
+                        {isUncategorized ? `${formatCurrency(userData.calculateExpense(category.getId(), month, year))} inside` : `${formatCurrency(remaining)} remaining`}
                       </p>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-sm text-muted-foreground" hidden={isUncategorized}>
                         {percentage.toFixed(1)}% used
                       </p>
                     </div>
-                    <div className="flex gap-1">
+                    <div className="flex gap-1" hidden={isUncategorized}>
                       <Button
                         variant="ghost"
                         size="sm"

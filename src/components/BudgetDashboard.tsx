@@ -75,7 +75,7 @@ export function BudgetDashboard({ userData, monthYear }: DashboardProps) {
       <Card className="p-6">
         <h3 className="mb-4">Budget Categories</h3>
         <div className="space-y-4">
-          {userData.getCategories().length - 1 === 0 ? (
+          {userData.getCategories().length - 1 === 0 || (userData.calculateTotalExpense(monthYear) === 0 && userData.categorySize() === 2) ? (
             <div className="text-center text-muted-foreground py-8">
               <BarChart3 className="w-12 h-12 mx-auto mb-2 opacity-50" />
               <p>No categories yet.</p>
@@ -87,6 +87,7 @@ export function BudgetDashboard({ userData, monthYear }: DashboardProps) {
             const { month, year } = userData.parseMonthYear(monthYear);
             const percentage = userData.calculateUsage(category.getId(), month, year);
             const isOverBudget = percentage > 100
+            const isUncategorized = category.getId() === "1";
             
             return (
               <div key={category.getId()} className="space-y-2 w-full">
@@ -102,16 +103,23 @@ export function BudgetDashboard({ userData, monthYear }: DashboardProps) {
                     )}
                   </div>
                   <div className="text-right">
-                    <span className="text-sm">
-                      {formatCurrency(userData.calculateExpense(category.getId(), month, year))} / {formatCurrency(category.getBudget())}
-                    </span>
+                    {isUncategorized ? (
+                      <span className="text-sm">
+                        {formatCurrency(userData.calculateExpense(category.getId(), month, year))}
+                      </span>
+                    ) : (
+                      <span className="text-sm">
+                        {formatCurrency(userData.calculateExpense(category.getId(), month, year))} / {formatCurrency(category.getBudget())}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <Progress 
                   value={Math.min(percentage, 100)}
                   className="h-4"
+                  hidden={isUncategorized}
                 />
-                <div className="text-right text-xs text-muted-foreground">
+                <div className="text-right text-xs text-muted-foreground" hidden={isUncategorized}>
                   {percentage.toFixed(1)}% used
                 </div>
               </div>

@@ -83,6 +83,7 @@ export default class UserData {
         let total = 0;
         const { month, year } = this.parseMonthYear(monthYear);
         this.categories.forEach(category => {
+            if (category.getId() === "1") return;
             total += this.calculateRemainingBudget(category.getId(), month, year);
         });
         return total;

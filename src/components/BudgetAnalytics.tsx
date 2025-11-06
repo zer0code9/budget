@@ -44,6 +44,7 @@ export function BudgetAnalytics({ userData, monthYear }: BudgetAnalyticsProps) {
 
     const successfulCategories = relevantCategories
       .filter(c => {
+        if (c.getId() === "1") return true
         const spent = pieData.find(p => p.name === c.getName())?.value || 0
         return spent <= c.getBudget()
       })
@@ -51,6 +52,7 @@ export function BudgetAnalytics({ userData, monthYear }: BudgetAnalyticsProps) {
 
     const overBudgetCategories = relevantCategories
       .filter(c => {
+        if (c.getId() === "1") return false
         const spent = pieData.find(p => p.name === c.getName())?.value || 0
         return spent > c.getBudget()
       })
@@ -120,7 +122,7 @@ export function BudgetAnalytics({ userData, monthYear }: BudgetAnalyticsProps) {
           <CardTitle>Spending Distribution</CardTitle>
         </CardHeader>
         <CardContent className="h-[400px]">
-          {pieData.length === 0 ? (
+          {pieData.length === 0 || userData.transactionSize() === 0 ? (
             <div className="text-center text-muted-foreground py-8">
               <TrendingUp className="w-12 h-12 mx-auto mb-2 opacity-50" />
               <p>No transaction expenses from categories yet.</p>
