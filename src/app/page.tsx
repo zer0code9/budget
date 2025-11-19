@@ -18,6 +18,55 @@ import Category from "@/components/classes/Category"
 import UserData from "@/components/classes/UserData"
 import { sign } from "./firmware"
 
+function categoriesToDto(categories: Category[]) {
+  return categories.map((c) => ({
+    id: c.getId(),
+    name: c.getName(),
+    color: c.getColor(),
+    budget: c.getBudget(),
+    createdAt: c.getDate().toISOString(),
+  }));
+}
+
+function transactionsToDto(transactions: Transaction[]) {
+  return transactions.map((t) => ({
+    id: t.getId(),
+    date: t.getDate().toISOString().slice(0, 10), // YYYY-MM-DD
+    description: t.getDescription(),
+    amount: t.getAmount(),
+    type: t.getType(),
+    categoryId: t.getCategoryId(),
+  }));
+}
+
+function dtoToCategories(rows: any[]): Category[] {
+  return rows.map(
+    (r) =>
+      new Category(
+        r.id,
+        r.createdAt ? new Date(r.createdAt) : new Date(),
+        r.name,
+        r.color,
+        r.budget
+      )
+  );
+}
+
+function dtoToTransactions(rows: any[]): Transaction[] {
+  return rows.map(
+    (r) =>
+      new Transaction(
+        r.id,
+        new Date(r.date),
+        r.amount,
+        r.type,
+        r.description,
+        r.categoryId
+      )
+  );
+}
+
+
 const category1 = new Category('0', new Date(), 'Income', '#ffffff', 0);
 const category2 = new Category('1', new Date(), 'Uncategorized', '#c7c7c7', 0);
 const sampleUserData = new UserData();
@@ -58,23 +107,87 @@ export default function App() {
   //   localStorage.setItem('transactions', JSON.stringify(transactions))
   // }, [transactions])
 
-  const handleSign = (e: React.FormEvent) => {
-    e.preventDefault()
-
-    setProcessingStatus(true)
-    const sessionId = sign(sessionToken, logState)
-    setSessionToken(["", "", ""])
-
-    if (sessionId) {
-      setSessionToken(["", "", sessionId])
-      setLogState(true)
-      setLoggedIn(true)
-      setFormError(null)
-    } else {
-      setFormError("Invalid email or password")
+  const loadUserData = async (sessionId: string) => {
+  try {
+    const res = await fetch(`/api/user-data?userId=${sessionId}`);
+    if (!res.ok) {
+      console.error("Failed to load user data");
+      return;
     }
-    setProcessingStatus(false)
+
+    const data = await res.json();
+
+    const loadedCategories = dtoToCategories(data.categories || []);
+    const loadedTransactions = dtoToTransactions(data.transactions || []);
+
+    setCategories(loadedCategories);
+    setTransactions(loadedTransactions);
+  } catch (err) {
+    console.error("Error loading user data:", err);
   }
+};
+
+const syncUserData = async (
+  nextCategories: Category[],
+  nextTransactions: Transaction[]
+) => {
+  const userId = sessionToken[2]; // sessionToken[2] == user id from login
+
+  if (!userId) {
+    console.warn("No userId in sessionToken, skipping sync");
+    return;
+  }
+
+  try {
+    await fetch("/api/user-data", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId,
+        categories: categoriesToDto(nextCategories),
+        transactions: transactionsToDto(nextTransactions),
+      }),
+    });
+  } catch (err) {
+    console.error("Failed to sync user data:", err);
+  }
+};
+
+  
+  const handleSign = async (e: React.FormEvent) => {
+  e.preventDefault();
+
+  setProcessingStatus(true);
+
+  const sessionId = await sign(sessionToken, logState);
+
+  if (sessionId) {
+    console.log("Logged in userId:", sessionId);
+    setSessionToken(["", "", sessionId]);
+    setLogState(true);
+    setLoggedIn(true);
+    setFormError(null);
+
+    // Load categories + transactions from DB
+    await loadUserData(sessionId);
+  } else {
+    setFormError("Invalid email or password");
+  }
+
+  setProcessingStatus(false);
+};
+
+const handleUpdateCategories = (updated: Category[]) => {
+  setCategories(updated);
+  // use latest transactions from state
+  syncUserData(updated, transactions);
+};
+
+const handleUpdateTransactions = (updated: Transaction[]) => {
+  setTransactions(updated);
+  // use latest categories from state
+  syncUserData(categories, updated);
+};
 
   const handleSignOut = () => {
     setSessionToken(["", "", ""])
@@ -232,7 +345,7 @@ export default function App() {
           <TabsContent value="categories">
             <BudgetManager 
               userData={userData}
-              onUpdateCategories={setCategories}
+              onUpdateCategories={handleUpdateCategories}
               onDeleteCategory={(id: string) => handleDeleteCategory(id)}
               monthYear={monthYear}
             />
@@ -241,7 +354,7 @@ export default function App() {
           <TabsContent value="transactions">
             <ExpenseTracker 
               userData={userData}
-              onUpdateTransactions={setTransactions}
+              onUpdateTransactions={handleUpdateTransactions}
               defaultSearchQuery={transactionsTabSearchQuery}
             />
           </TabsContent>
