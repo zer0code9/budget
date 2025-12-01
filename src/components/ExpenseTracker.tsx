@@ -1,7 +1,7 @@
 // src/components/ExpenseTracker.tsx
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 // UI
 import { Card } from "./ui/card";
@@ -97,6 +97,10 @@ export function ExpenseTracker({
     return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   };
 
+  const getIncomeId = useCallback(() => {
+    return [userData.getCategories().filter((c) => c.getName() === "Income")[0].getId(), userData.getCategories().filter((c) => c.getName() === "Uncategorized")[0].getId()];
+  }, [userData]);
+
   // ===== Add / Edit / Delete =====
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,14 +118,14 @@ export function ExpenseTracker({
       // Update existing
       const updated = userData.getTransactions().map((t) =>
         t.getId() === editingTransaction.getId()
-          ? new Transaction(t.getId(), new Date(date), amount, type, description, categoryId || "0")
+          ? new Transaction(t.getId(), date, amount, type, description, categoryId || getIncomeId()[0])
           : t
       );
       onUpdateTransactions(updated);
     } else {
       // Add new
       const newId = userData.findMaxId(userData.getTransactions()) + 1 + "";
-      const newTx = new Transaction(newId, new Date(date), amount, type, description, categoryId || "0");
+      const newTx = new Transaction(newId, date, amount, type, description, categoryId || getIncomeId()[0]);
       onUpdateTransactions([...userData.getTransactions(), newTx]);
     }
 
@@ -130,7 +134,7 @@ export function ExpenseTracker({
   };
 
   const handleEdit = (t: Transaction) => {
-    setDate(new Date(t.getDate()));
+    setDate(t.getDate());
     setAmount(t.getAmount());
     setType(t.getType());
     setDescription(t.getDescription());
@@ -157,20 +161,20 @@ export function ExpenseTracker({
   // ===== Categories =====
   const getAvailableCategories = () => {
     if (type === "expense") {
-      return userData.getCategories().filter((c) => c.getId() !== "0");
+      return userData.getCategories().filter((c) => c.getId() !== getIncomeId()[0]);
     } else {
       // income → show only the Income bucket (id "0")
-      return userData.getCategories().filter((c) => c.getId() === "0");
+      return userData.getCategories().filter((c) => c.getId() === getIncomeId()[0]);
     }
   };
 
   useEffect(() => {
     if (type === "income") {
-      setCategoryId("0");
+      setCategoryId(getIncomeId()[0]);
     } else {
-      setCategoryId("");
+      setCategoryId(categoryId || getIncomeId()[1]);
     }
-  }, [type]);
+  }, [type, categoryId,getIncomeId]);
 
   // ===== Sorting & Search =====
   const handleSort = (field: SortField) => {
@@ -288,13 +292,13 @@ export function ExpenseTracker({
         const isIncome = (t.type || "").toLowerCase() === "income";
 
         // Income → force category "0"
-        let resolvedCategoryId = isIncome ? "0" : "";
+        let resolvedCategoryId = isIncome ? getIncomeId()[0] : "";
 
         if (!isIncome) {
           const match = userData
             .getCategories()
             .find((c) => c.getName().toLowerCase() === (t.category || "").toLowerCase());
-          resolvedCategoryId = match ? match.getId() : "0";
+          resolvedCategoryId = match ? match.getId() : getIncomeId()[1];
         }
 
         return new Transaction(

@@ -4,7 +4,9 @@
 MAC:
 
 brew update
+
 brew install postgresql@16
+
 brew services start postgresql@16
 
 
@@ -18,12 +20,11 @@ https://www.postgresql.org/download/windows/
 psql postgres   (MAC)
 
 
-
 - Create database user
 
 CREATE ROLE budget_user WITH LOGIN PASSWORD 'password';
-ALTER ROLE budget_user CREATEDB;   -- optional but recommended
 
+ALTER ROLE budget_user CREATEDB;   -- optional but recommended
 
 
 - Create Database
@@ -31,16 +32,12 @@ ALTER ROLE budget_user CREATEDB;   -- optional but recommended
 CREATE DATABASE budget_tracker OWNER budget_user;
 
 
-
-
 - Connect to new data base
 
 \c budget_tracker
 
 
-
 - Create tables (paste this)
-
 
 CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
@@ -49,42 +46,39 @@ CREATE TABLE IF NOT EXISTS users (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
--- Optional for future features
-CREATE TABLE IF NOT EXISTS categories (
-  id SERIAL PRIMARY KEY,
-  name TEXT NOT NULL,
-  created_at TIMESTAMP DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS categories ( 
+  id SERIAL PRIMARY KEY, 
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, 
+  date TIMESTAMP DEFAULT NOW(), 
+  name TEXT NOT NULL, 
+  color TEXT NOT NULL, 
+  budget NUMERIC(10, 2) NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS transactions (
-  id SERIAL PRIMARY KEY,
-  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  category_id INTEGER REFERENCES categories(id),
-  amount NUMERIC(10, 2) NOT NULL,
-  description TEXT,
-  occurred_at DATE DEFAULT CURRENT_DATE,
-  created_at TIMESTAMP DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS transactions ( 
+  id SERIAL PRIMARY KEY, 
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, 
+  date TIMESTAMP DEFAULT NOW(), 
+  amount NUMERIC(10, 2) NOT NULL, 
+  type TEXT NOT NULL, 
+  description TEXT, 
+  category_id INTEGER REFERENCES categories(id) 
 );
-
-
-
-
 
 
 - Create .env.local
 
 touch .env.local
 
-(add this)
+and add this to it
 
 DATABASE_URL=postgresql://budget_user:password@localhost:5432/budget_tracker
-
-
 
 
 - start application
 
 npm install
+
 npm run dev
 
 http://localhost:3000

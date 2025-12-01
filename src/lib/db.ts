@@ -10,6 +10,6 @@ const pool = new Pool({
 });
 
 // Minimal helper – no generics, nice and simple
-export function query(text: string, params?: any[]) {
-  return pool.query(text, params);
+export async function query(text: string, params?: any[]) {
+  return await pool.query(text, params);
 }

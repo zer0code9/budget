@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
@@ -26,10 +26,14 @@ export function BudgetAnalytics({ userData, monthYear }: BudgetAnalyticsProps) {
   const [chartView, setChartView] = useState<number>(6)
   const {month, year} = userData.parseMonthYear(monthYear)
 
+  const getIncomeId = useCallback(() => {
+    return [userData.getCategories().filter((c) => c.getName() === "Income")[0].getId(), userData.getCategories().filter((c) => c.getName() === "Uncategorized")[0].getId()];
+  }, [userData]);
+
   // Pie chart data: sum of expenses per category (including empty categories)
   const pieData = useMemo(() => {
     return userData.getCategories()
-      .filter(c => c.getId() !== "0")
+      .filter(c => c.getId() !== getIncomeId()[0]) // Exclude income category
       .map(c => {
         const spent = userData.calculateExpense(c.getId(), month, year)
         return {
@@ -38,15 +42,15 @@ export function BudgetAnalytics({ userData, monthYear }: BudgetAnalyticsProps) {
           color: spent > 0 ? c.getColor() : '#d1d5db', // grey out empty categories
         }
       })
-  }, [userData, month, year])
+  }, [userData, month, year, getIncomeId]);
 
   // Overview: success/failure status
   const overviewStatus = useMemo(() => {
-    const relevantCategories = userData.getCategories().filter(c => c.getId() !== "0")
+    const relevantCategories = userData.getCategories().filter(c => c.getId() !== getIncomeId()[0])
 
     const successfulCategories = relevantCategories
       .filter(c => {
-        if (c.getId() === "1") return true
+        if (c.getId() === getIncomeId()[1]) return true
         const spent = pieData.find(p => p.name === c.getName())?.value || 0
         return spent <= c.getBudget()
       })
@@ -54,7 +58,7 @@ export function BudgetAnalytics({ userData, monthYear }: BudgetAnalyticsProps) {
 
     const overBudgetCategories = relevantCategories
       .filter(c => {
-        if (c.getId() === "1") return false
+        if (c.getId() === getIncomeId()[1]) return false
         const spent = pieData.find(p => p.name === c.getName())?.value || 0
         return spent > c.getBudget()
       })
@@ -67,7 +71,7 @@ export function BudgetAnalytics({ userData, monthYear }: BudgetAnalyticsProps) {
       success: successfulCategories,
       failures: overBudgetCategories,
     }
-  }, [userData, pieData])
+  }, [userData, pieData, getIncomeId]);
 
   // Monthly timeline: last 6 months
   const monthlyTrends = useMemo(() => {
@@ -158,7 +162,7 @@ export function BudgetAnalytics({ userData, monthYear }: BudgetAnalyticsProps) {
       <Card>
         <CardHeader>
           <CardTitle className='w-fit p-2 flex flex-row items-center'>
-            <h1 className='w-[200px]'>Monthly Trends {chartView}</h1>
+            <h1 className='w-[200px]'>Monthly Trends</h1>
             <Select value={`${chartView}`} onValueChange={(value: string) => {
               setChartView(Number(value))
             }}>

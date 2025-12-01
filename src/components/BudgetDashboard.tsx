@@ -1,3 +1,4 @@
+import { useCallback } from "react"
 import { Card } from "./ui/card"
 import { Progress } from "./ui/progress"
 import { Badge } from "./ui/badge"
@@ -21,6 +22,10 @@ export function BudgetDashboard({ userData, monthYear }: DashboardProps) {
       currency: 'USD'
     }).format(amount)
   }
+
+  const getIncomeId = useCallback(() => {
+    return [userData.getCategories().filter((c) => c.getName() === "Income")[0].getId(), userData.getCategories().filter((c) => c.getName() === "Uncategorized")[0].getId()];
+  }, [userData]);
 
   return (
     <div className="space-y-6">
@@ -83,11 +88,11 @@ export function BudgetDashboard({ userData, monthYear }: DashboardProps) {
             </div>
           ) : (
           userData.getCategories().map((category) => {
-            if (category.getId() === "0") return null // Skip default category
+            if (category.getId() === getIncomeId()[0]) return null // Skip default category
             const { month, year } = userData.parseMonthYear(monthYear);
             const percentage = userData.calculateUsage(category.getId(), month, year);
             const isOverBudget = percentage > 100
-            const isUncategorized = category.getId() === "1";
+            const isUncategorized = category.getId() === getIncomeId()[1];
             
             return (
               <div key={category.getId()} className="space-y-2 w-full">

@@ -21,21 +21,10 @@ import { sign } from "./firmware"
 function categoriesToDto(categories: Category[]) {
   return categories.map((c) => ({
     id: c.getId(),
+    date: c.getDate(),
     name: c.getName(),
     color: c.getColor(),
     budget: c.getBudget(),
-    createdAt: c.getDate().toISOString(),
-  }));
-}
-
-function transactionsToDto(transactions: Transaction[]) {
-  return transactions.map((t) => ({
-    id: t.getId(),
-    date: t.getDate().toISOString().slice(0, 10), // YYYY-MM-DD
-    description: t.getDescription(),
-    amount: t.getAmount(),
-    type: t.getType(),
-    categoryId: t.getCategoryId(),
   }));
 }
 
@@ -44,12 +33,23 @@ function dtoToCategories(rows: any[]): Category[] {
     (r) =>
       new Category(
         r.id,
-        r.createdAt ? new Date(r.createdAt) : new Date(),
+        new Date(r.date),
         r.name,
         r.color,
         r.budget
       )
   );
+}
+
+function transactionsToDto(transactions: Transaction[]) {
+  return transactions.map((t) => ({
+    id: t.getId(),
+    date: t.getDate(),
+    amount: t.getAmount(),
+    type: t.getType(),
+    description: t.getDescription(),
+    categoryId: t.getCategoryId(),
+  }));
 }
 
 function dtoToTransactions(rows: any[]): Transaction[] {
@@ -66,105 +66,103 @@ function dtoToTransactions(rows: any[]): Transaction[] {
   );
 }
 
-
-const category1 = new Category('0', new Date(), 'Income', '#ffffff', 0);
-const category2 = new Category('1', new Date(), 'Uncategorized', '#c7c7c7', 0);
-const sampleUserData = new UserData();
-sampleUserData.setCategories([category1, category2]);
-
 export default function App() {
   const [logState, setLogState] = useState<boolean>(true)
   const [loogedIn, setLoggedIn] = useState<boolean>(false)
   const [sessionToken, setSessionToken] = useState<string[]>(["", "", ""])
   const [processingStatus, setProcessingStatus] = useState<boolean>(false)
   const [formError, setFormError] = useState<string | null>(null)
-  const [userData, setUserData] = useState<UserData>(sampleUserData)
-  const [categories, setCategories] = useState<Category[]>(userData.getCategories())
-  const [transactions, setTransactions] = useState<Transaction[]>(userData.getTransactions())
+  const [userData, setUserData] = useState<UserData>(new UserData())
+  const [categories, setCategories] = useState<Category[]>([])
+  const [transactions, setTransactions] = useState<Transaction[]>([])
   const [monthYear, setMonthYear] = useState<string>(`${new Date().getMonth() + 1}-${new Date().getFullYear()}`) // month 1-12
   const [transactionsTabSearchQuery, setTransactionsTabSearchQuery] = useState<string>(`@date:${monthYear}`)
 
   const loadUserData = async (sessionId: string) => {
-  try {
-    const res = await fetch(`/api/user-data?userId=${sessionId}`);
-    if (!res.ok) {
-      console.error("Failed to load user data");
+    try {
+      const res = await fetch(`/api/user-data?userId=${sessionId}`);
+      if (!res.ok) {
+        console.error("Failed to load user data");
+        return;
+      }
+
+      const data = await res.json();
+
+      const loadedCategories = dtoToCategories(data.categories || []);
+      const loadedTransactions = dtoToTransactions(data.transactions || []);
+
+      setCategories(loadedCategories);
+      setTransactions(loadedTransactions);
+      } catch (err) {
+        console.error("Error loading user data:", err);
+      }
+  };
+
+  const syncUserData = async (
+    nextCategories: Category[],
+    nextTransactions: Transaction[]
+  ) => {
+    const userId = sessionToken[2]; // sessionToken[2] == user id from login
+
+    if (!userId) {
+      console.warn("No userId in sessionToken, skipping sync");
       return;
     }
 
-    const data = await res.json();
-
-    const loadedCategories = dtoToCategories(data.categories || []);
-    const loadedTransactions = dtoToTransactions(data.transactions || []);
-
-    setCategories(loadedCategories);
-    setTransactions(loadedTransactions);
-  } catch (err) {
-    console.error("Error loading user data:", err);
-  }
-};
-
-const syncUserData = async (
-  nextCategories: Category[],
-  nextTransactions: Transaction[]
-) => {
-  const userId = sessionToken[2]; // sessionToken[2] == user id from login
-
-  if (!userId) {
-    console.warn("No userId in sessionToken, skipping sync");
-    return;
-  }
-
-  try {
-    await fetch("/api/user-data", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userId,
-        categories: categoriesToDto(nextCategories),
-        transactions: transactionsToDto(nextTransactions),
-      }),
-    });
-  } catch (err) {
-    console.error("Failed to sync user data:", err);
-  }
-};
+    try {
+      await fetch("/api/user-data", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId,
+          categories: categoriesToDto(nextCategories),
+          transactions: transactionsToDto(nextTransactions),
+        }),
+      });
+    } catch (err) {
+      console.error("Failed to sync user data:", err);
+    }
+  };
 
   
   const handleSign = async (e: React.FormEvent) => {
-  e.preventDefault();
+    e.preventDefault();
 
-  setProcessingStatus(true);
+    if (sessionToken[1].length < 6) {
+      setFormError("Password must be at least 6 characters");
+      return;
+    }
 
-  const sessionId = await sign(sessionToken, logState);
+    setProcessingStatus(true);
 
-  if (sessionId) {
-    console.log("Logged in userId:", sessionId);
+    const sessionId = await sign(sessionToken, logState);
     setSessionToken(["", "", sessionId]);
-    setLogState(true);
-    setLoggedIn(true);
-    setFormError(null);
+    if (sessionId) {
+      console.log("Logged in userId:", sessionId);
+      setLogState(true);
+      setLoggedIn(true);
+      setFormError(null);
 
-    // Load categories + transactions from DB
-    await loadUserData(sessionId);
-  } else {
-    setFormError("Invalid email or password");
-  }
+      // Load categories + transactions from DB
+      await loadUserData(sessionId);
+    } else {
+      setFormError("Invalid email or password");
+    }
 
-  setProcessingStatus(false);
-};
+    setProcessingStatus(false);
+  };
 
-const handleUpdateCategories = (updated: Category[]) => {
-  setCategories(updated);
-  // use latest transactions from state
-  syncUserData(updated, transactions);
-};
+  const handleUpdateCategories = (updated: Category[]) => {
+    setCategories(updated);
+    // use latest transactions from state
+    syncUserData(updated, transactions);
+  };
 
-const handleUpdateTransactions = (updated: Transaction[]) => {
-  setTransactions(updated);
-  // use latest categories from state
-  syncUserData(categories, updated);
-};
+  const handleUpdateTransactions = (updated: Transaction[]) => {
+    setTransactions(updated);
+    // use latest categories from state
+    syncUserData(categories, updated);
+  };
 
   const handleSignOut = () => {
     setSessionToken(["", "", ""])

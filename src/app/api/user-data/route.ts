@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
 
+// function formatDate(date: Date): string {
+//   return date.getFullYear() + "-" + (date.getMonth() + 1) + "-" + date.getDate(); // Format as YYYY-MM-DD
+// }
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -25,70 +29,71 @@ export async function GET(req: NextRequest) {
     // Fetch categories
     const catRes = await query(
       `
-      SELECT user_id, category_id, name, color, budget, created_at
+      SELECT id, user_id, date, name, color, budget
       FROM categories
       WHERE user_id = $1
-      ORDER BY category_id::int
+      ORDER BY id::int
       `,
       [userId]
     );
 
     let categories = catRes.rows.map((row: any) => ({
-      id: row.category_id,
+      id: row.id,
+      date: row.date,
       name: row.name,
       color: row.color,
       budget: Number(row.budget),
-      createdAt: row.created_at?.toISOString?.() ?? undefined,
     }));
 
     // If no categories exist yet → initialize default categories
     if (categories.length === 0) {
       await query(
         `
-        INSERT INTO categories (user_id, category_id, name, color, budget)
+        INSERT INTO categories 
+          (id, user_id, date, name, color, budget)
         VALUES 
-          ($1, '0', 'Income', '#ffffff', 0),
-          ($1, '1', 'Uncategorized', '#c7c7c7', 0)
+          ('0', $1, $2, 'Income', '#ffffff', 0),
+          ('1', $1, $2, 'Uncategorized', '#c7c7c7', 0)
         `,
-        [userId]
+        [userId, new Date()]
       );
 
       const fresh = await query(
         `
-        SELECT user_id, category_id, name, color, budget, created_at
+        SELECT id, user_id, date, name, color, budget
         FROM categories
         WHERE user_id = $1
-        ORDER BY category_id::int
+        ORDER BY id::int
         `,
         [userId]
       );
 
       categories = fresh.rows.map((row: any) => ({
-        id: row.category_id,
+        id: row.id,
+        date: row.date,
         name: row.name,
         color: row.color,
         budget: Number(row.budget),
-        createdAt: row.created_at?.toISOString?.() ?? undefined,
       }));
     }
 
     // Fetch transactions
     const txRes = await query(
       `
-      SELECT user_id, transaction_id, date, description, amount, type, category_id
+      SELECT id, user_id, date, amount, type, description, category_id
       FROM transactions
       WHERE user_id = $1
-      ORDER BY date, transaction_id::int
+      ORDER BY id::int
       `,
       [userId]
     );
 
     const transactions = txRes.rows.map((row: any) => ({
-      id: row.transaction_id,
-      date: row.date.toISOString().slice(0, 10),
-      description: row.description,
+      id: row.id,
+      date: row.date,
       amount: Number(row.amount),
       type: row.type,
+      description: row.description,
       categoryId: row.category_id,
     }));
 
@@ -123,25 +128,56 @@ export async function PUT(req: NextRequest) {
     await query("BEGIN");
 
     // Delete old data for that user
-    await query("DELETE FROM transactions WHERE user_id = $1", [userIdNum]);
-    await query("DELETE FROM categories WHERE user_id = $1", [userIdNum]);
+    // await query("DELETE FROM transactions WHERE user_id = $1", [userIdNum]);
+    // await query("DELETE FROM categories WHERE user_id = $1", [userIdNum]);
+
+    // Delete categories that are not in the request
+
+    const dbCatIds = await query(
+      "SELECT id FROM categories WHERE user_id = $1",
+      [userIdNum]
+    );
+    const tpCatsIds = cats.map((c) => c.id);
+    const deletedCatIds = dbCatIds.rows.filter((dbCat: any) => !tpCatsIds.includes(dbCat.id)).map((dbCat: any) => dbCat.id);
+    for (const id of deletedCatIds) {
+      await query("DELETE FROM categories WHERE id = $1 AND user_id = $2", [id, userIdNum]);
+    }
+
+    // Delete transactions that are not in the request
+
+    const dbTxIds = await query(
+      "SELECT id FROM transactions WHERE user_id = $1",
+      [userIdNum]
+    );
+    const tpTxIds = txs.map((t) => t.id);
+    const deletedTxIds = dbTxIds.rows.filter((dbTx: any) => !tpTxIds.includes(dbTx.id)).map((dbTx: any) => dbTx.id);
+    for (const id of deletedTxIds) {
+      await query("DELETE FROM transactions WHERE id = $1 AND user_id = $2", [id, userIdNum]);
+    }
 
     // Insert categories
     for (const c of cats) {
       await query(
         `
         INSERT INTO categories 
-          (user_id, category_id, name, color, budget, created_at)
+          (id, user_id, date, name, color, budget)
         VALUES 
-          ($1, $2, $3, $4, $5, COALESCE($6::timestamptz, now()))
+          ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT 
+          (id)
+        DO UPDATE SET 
+          date = $3,
+          name = $4,
+          color = $5,
+          budget = $6
         `,
         [
-          userIdNum,
           c.id,
+          userIdNum,
+          c.date,
           c.name,
           c.color,
-          c.budget ?? 0,
-          c.createdAt ?? null,
+          c.budget,
         ]
       );
     }
@@ -150,18 +186,26 @@ export async function PUT(req: NextRequest) {
     for (const t of txs) {
       await query(
         `
-        INSERT INTO transactions
-          (user_id, transaction_id, date, description, amount, type, category_id)
-        VALUES
-          ($1, $2, $3::date, $4, $5, $6, $7)
+        INSERT INTO transactions 
+          (id, user_id, date, amount, type, description, category_id)
+        VALUES 
+          ($1, $2, $3, $4, $5, $6, $7)
+        ON CONFLICT
+          (id)
+        DO UPDATE SET
+          date = $3,
+          amount = $4,
+          type = $5,
+          description = $6,
+          category_id = $7
         `,
         [
-          userIdNum,
           t.id,
+          userIdNum,
           t.date,
-          t.description,
           t.amount,
           t.type,
+          t.description,
           t.categoryId,
         ]
       );
