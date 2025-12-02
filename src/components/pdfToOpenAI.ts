@@ -1,7 +1,9 @@
 // src/components/pdfToOpenAI.ts
 "use client";
 
+import { on } from "events";
 import OpenAI from "openai";
+import { getResolvedPDFJS } from 'unpdf'
 
 /**
  * PDF → text (client) + GPT extraction
@@ -14,57 +16,60 @@ import OpenAI from "openai";
  *   NEXT_PUBLIC_OPENAI_API_KEY=sk-...
  */
 
-let pdfjsLib: any | null = null;
-let pdfWorker: Worker | null = null;
-let workerReady = false;
+// let pdfjsLib: any | null = null;
+// let pdfWorker: Worker | null = null;
+// let workerReady = false;
 
-async function loadPDFJS() {
-  if (pdfjsLib) return pdfjsLib;
+// async function loadPDFJS() {
+//   if (pdfjsLib) return pdfjsLib;
 
-  // Core lib (v4/v5 safe)
-  const lib = await import("pdfjs-dist/build/pdf");
+//   // Core lib (v4/v5 safe)
+//   const lib = await import("pdfjs-dist/build/pdf");
 
-  // Try to provide a real Worker via workerPort (preferred)
-  if (!workerReady) {
-    try {
-      // Common v4/v5 filename
-      pdfWorker = new Worker(
-        new URL("pdfjs-dist/build/pdf.worker.mjs", import.meta.url),
-        { type: "module", name: "pdfjs-worker" }
-      );
-      (lib as any).GlobalWorkerOptions.workerPort = pdfWorker as any;
-      workerReady = true;
-    } catch {
-      try {
-        // Some distros ship a minified name
-        pdfWorker = new Worker(
-          new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url),
-          { type: "module", name: "pdfjs-worker" }
-        );
-        (lib as any).GlobalWorkerOptions.workerPort = pdfWorker as any;
-        workerReady = true;
-      } catch {
-        workerReady = false;
-        pdfWorker = null;
-      }
-    }
-  }
+//   // Try to provide a real Worker via workerPort (preferred)
+//   if (!workerReady) {
+//     try {
+//       // Common v4/v5 filename
+//       pdfWorker = new Worker(
+//         new URL("pdfjs-dist/build/pdf.worker.mjs", import.meta.url),
+//         { type: "module", name: "pdfjs-worker" }
+//       );
+//       (lib as any).GlobalWorkerOptions.workerPort = pdfWorker as any;
+//       workerReady = true;
+//     } catch {
+//       try {
+//         // Some distros ship a minified name
+//         pdfWorker = new Worker(
+//           new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url),
+//           { type: "module", name: "pdfjs-worker" }
+//         );
+//         (lib as any).GlobalWorkerOptions.workerPort = pdfWorker as any;
+//         workerReady = true;
+//       } catch {
+//         workerReady = false;
+//         pdfWorker = null;
+//       }
+//     }
+//   }
 
-  pdfjsLib = lib;
-  return pdfjsLib;
-}
+//   pdfjsLib = lib;
+//   return pdfjsLib;
+// }
 
 /** -------- Extract plain text from every page of a PDF -------- */
-async function extractTextFromPdf(file: File): Promise<string> {
+async function extractTextFromPdf(file: File, onProgress: (status: string) => void): Promise<string> {
+  onProgress("Getting document...");
+  const { getDocument } = await getResolvedPDFJS();
   const arrayBuffer = await file.arrayBuffer();
-  const pdfjs = await loadPDFJS();
 
   // If we couldn't start a worker, disable worker usage for this doc.
-  const docParams: any = workerReady
-    ? { data: arrayBuffer }
-    : { data: arrayBuffer, disableWorker: true };
+  // const docParams: any = workerReady
+  //   ? { data: arrayBuffer }
+  //   : { data: arrayBuffer, disableWorker: true };
 
-  const pdf = await pdfjs.getDocument(docParams).promise;
+  const pdf = await getDocument({ data: arrayBuffer }).promise;
+
+  onProgress("Extracting text from PDF...");
 
   const pages: string[] = [];
   for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
@@ -103,12 +108,12 @@ export type ExtractedTransaction = {
 export async function sendPdfToOpenAI(
   file: File,
   categories: { getName: () => string }[],
-  onProgress?: (status: string) => void
+  onProgress: (status: string) => void
 ): Promise<{ transactions: ExtractedTransaction[] }> {
-  onProgress?.("Extracting text from PDF…");
-  const statementText = await extractTextFromPdf(file);
+  onProgress("Extracting text from PDF...");
+  const statementText = await extractTextFromPdf(file, onProgress);
 
-  onProgress?.("Processing uploaded data...");
+  onProgress("Processing uploaded data...");
   const client = getOpenAI();
 
   const categoryList = categories.map((c) => c.getName()).join(", ");
@@ -133,6 +138,8 @@ export async function sendPdfToOpenAI(
     // no temperature — gpt-5-nano only supports default (1)
   });
 
+  onProgress("Processing response...");
+
   const content = res.choices?.[0]?.message?.content;
   if (!content) throw new Error("Empty response from model");
 
@@ -142,6 +149,8 @@ export async function sendPdfToOpenAI(
   } catch {
     throw new Error("Model returned invalid JSON");
   }
+
+  onProgress("Extracting transactions from response...");
 
   const transactions: ExtractedTransaction[] = Array.isArray(parsed?.transactions)
     ? parsed.transactions

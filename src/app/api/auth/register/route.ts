@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import bcrypt from "bcrypt";
 import { query } from "@/lib/db";
 
 export async function POST(req: NextRequest) {
@@ -13,9 +14,10 @@ export async function POST(req: NextRequest) {
     }
 
     // check if user exists
-    const existing = await query("SELECT id FROM users WHERE email = $1", [
-      email,
-    ]);
+    const existing = await query(
+      "SELECT id FROM users WHERE email = $1",
+      [email]
+    );
 
     if (existing.rows.length > 0) {
       return NextResponse.json(
@@ -24,9 +26,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Hash password on server side
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+
     const result = await query(
       "INSERT INTO users (email, password) VALUES ($1, $2) RETURNING id",
-      [email, password] // (plaintext for academic demo)
+      [email, hashedPassword]
     );
 
     const userId = result.rows[0].id;

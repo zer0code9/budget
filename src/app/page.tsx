@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
+import { toast } from "sonner"
 import { BudgetDashboard } from "@/components/BudgetDashboard"
 import { BudgetManager } from "@/components/BudgetManager"
 import { ExpenseTracker } from "@/components/ExpenseTracker"
@@ -142,6 +143,7 @@ export default function App() {
       setLogState(true);
       setLoggedIn(true);
       setFormError(null);
+      toast.success(logState ? "Signed in successfully!" : "Registered successfully!");
 
       // Load categories + transactions from DB
       await loadUserData(sessionId);
@@ -165,10 +167,17 @@ export default function App() {
   };
 
   const handleSignOut = () => {
-    setSessionToken(["", "", ""])
+    setLogState(true)
     setLoggedIn(false)
+    setSessionToken(["", "", ""])
+    setProcessingStatus(false)
+    setFormError(null)
+    setUserData(new UserData())
     setCategories([])
     setTransactions([])
+    setMonthYear(`${new Date().getMonth() + 1}-${new Date().getFullYear()}`)
+    setTransactionsTabSearchQuery(`@date:${monthYear}`)
+    toast.success("Signed out successfully!")
   }
 
   const handleDeleteCategory = (id: string) => {

@@ -8,6 +8,8 @@ import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
+import { Spinner } from "./ui/spinner"
+import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
@@ -34,7 +36,6 @@ import {
   Upload,
   X,
   FileText,
-  Loader2,
   Funnel,
   Edit,
   Trash2,
@@ -174,7 +175,7 @@ export function ExpenseTracker({
     } else {
       setCategoryId(categoryId || getIncomeId()[1]);
     }
-  }, [type, categoryId,getIncomeId]);
+  }, [type, categoryId, getIncomeId]);
 
   // ===== Sorting & Search =====
   const handleSort = (field: SortField) => {
@@ -285,6 +286,8 @@ export function ExpenseTracker({
         setProcessingStatus
       );
 
+      setProcessingStatus("Verifying transactions...");
+
       // Generate sequential numeric ids to match your existing scheme
       const startId = userData.findMaxId(userData.getTransactions()) + 1;
 
@@ -311,14 +314,21 @@ export function ExpenseTracker({
         );
       });
 
+      setProcessingStatus("Importing transactions...");
+
       onUpdateTransactions([...userData.getTransactions(), ...mapped]);
       setProcessingStatus("Imported successfully!");
+      toast.success(`Imported ${mapped.length} transactions successfully!`);
       //setTimeout(closeImport, 1200);
     } catch (err: unknown) {
       console.error(err);
       if (err instanceof Error) alert("Import failed: " + (err.message || "Unknown error"));
+      toast.error("Import failed. Please try again.");
     } finally {
       setIsProcessing(false);
+      setSelectedFile(null);
+      setProcessingStatus("");
+      setShowImport(false);
     }
   };
 
@@ -403,7 +413,7 @@ export function ExpenseTracker({
                       </p>
                       {isProcessing && (
                         <div className="flex items-center gap-2 text-sm">
-                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <Spinner />
                           {processingStatus}
                         </div>
                       )}

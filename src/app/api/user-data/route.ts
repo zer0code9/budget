@@ -46,16 +46,26 @@ export async function GET(req: NextRequest) {
     }));
 
     // If no categories exist yet → initialize default categories
+    const maxId = await query(
+      `
+      SELECT MAX(id)
+      FROM categories
+      `,
+    );
+    if (maxId.rows.length === 0 || maxId.rows[0].max === null) {
+      maxId.rows[0].max = 0; // Ensure maxId is at least 0
+    }
+
     if (categories.length === 0) {
       await query(
         `
         INSERT INTO categories 
           (id, user_id, date, name, color, budget)
         VALUES 
-          ('0', $1, $2, 'Income', '#ffffff', 0),
-          ('1', $1, $2, 'Uncategorized', '#c7c7c7', 0)
+          ($3, $1, $2, 'Income', '#ffffff', 0),
+          ($4, $1, $2, 'Uncategorized', '#c7c7c7', 0)
         `,
-        [userId, new Date()]
+        [userId, new Date(), maxId.rows[0].max + 1, maxId.rows[0].max + 2]
       );
 
       const fresh = await query(
