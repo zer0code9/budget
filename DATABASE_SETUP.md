@@ -1,7 +1,7 @@
 
 - Install Postgress
 
-MAC:
+MAC: Using homebrew
 
 brew update
 
@@ -66,23 +66,6 @@ CREATE TABLE IF NOT EXISTS transactions (
 );
 
 
-- Create .env.local
-
-touch .env.local
-
-and add this to it
+- For .env.local
 
 DATABASE_URL=postgresql://budget_user:password@localhost:5432/budget_tracker
-
-
-- start application
-
-npm install
-
-npm run dev
-
-http://localhost:3000
-
-
-
-- Done !

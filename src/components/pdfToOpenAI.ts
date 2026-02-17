@@ -1,7 +1,6 @@
 // src/components/pdfToOpenAI.ts
 "use client";
 
-import { on } from "events";
 import OpenAI from "openai";
 import { getResolvedPDFJS } from 'unpdf'
 
@@ -61,11 +60,6 @@ async function extractTextFromPdf(file: File, onProgress: (status: string) => vo
   onProgress("Getting document...");
   const { getDocument } = await getResolvedPDFJS();
   const arrayBuffer = await file.arrayBuffer();
-
-  // If we couldn't start a worker, disable worker usage for this doc.
-  // const docParams: any = workerReady
-  //   ? { data: arrayBuffer }
-  //   : { data: arrayBuffer, disableWorker: true };
 
   const pdf = await getDocument({ data: arrayBuffer }).promise;
 

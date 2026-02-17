@@ -150,6 +150,7 @@ export async function PUT(req: NextRequest) {
     const tpCatsIds = cats.map((c) => c.id);
     const deletedCatIds = dbCatIds.rows.filter((dbCat: any) => !tpCatsIds.includes(dbCat.id)).map((dbCat: any) => dbCat.id);
     for (const id of deletedCatIds) {
+      await query("DELETE FROM transactions WHERE category_id = $1 AND user_id = $2", [id, userIdNum]);
       await query("DELETE FROM categories WHERE id = $1 AND user_id = $2", [id, userIdNum]);
     }
 
